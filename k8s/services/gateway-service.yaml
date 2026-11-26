@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  labels:
+    app: gateway-login
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway-login
+  ports:
+    - port: 3000
+      targetPort: 3000

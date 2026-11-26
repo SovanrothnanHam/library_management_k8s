@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: member
+  labels:
+    app: member
+    part-of: library
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: member
+  template:
+    metadata:
+      labels:
+        app: member
+        part-of: library
+    spec:
+      containers:
+        - name: member-container
+          image: rothnan/lib-k8s-member:1.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3004
+          env:
+            - name: PORT
+              value: "3004"
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: library-secret
+                  key: MONGO_URI
+            - name: GATEWAY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: library-secret
+                  key: GATEWAY_SECRET
+          readinessProbe:
+            tcpSocket:
+              port: 3004
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 250m, memory: 256Mi }

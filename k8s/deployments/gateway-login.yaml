@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-login
+  labels:
+    app: gateway-login
+    part-of: library
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-login
+  template:
+    metadata:
+      labels:
+        app: gateway-login
+        part-of: library
+    spec:
+      volumes:
+        - name: app-logs
+          persistentVolumeClaim:
+            claimName: gateway-logs
+      containers:
+        # ---------- Container 1: API Gateway ----------
+        - name: api-gateway-container
+          image: rothnan/lib-k8s-gateway:1.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - name: app-logs
+              mountPath: /var/log/app
+          env:
+            - name: PORT
+              value: "3000"
+            - name: LOG_FILE
+              value: /var/log/app/gateway-log.txt
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: library-secret
+                  key: JWT_SECRET
+            - name: GATEWAY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: library-secret
+                  key: GATEWAY_SECRET
+
+            - name: REGISTRATION_SERVICE_URL
+              value: "http://registration-service:3001"
+            - name: LIBRARIAN_SERVICE_URL
+              value: "http://librarian-service:3003"
+            - name: MEMBER_SERVICE_URL
+              value: "http://member-service:3004"
+            # Login is in the SAME Pod -> localhost
+            - name: LOGIN_SERVICE_URL
+              value: "http://127.0.0.1:3002"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+
+        # ---------- Container 2: Login ----------
+        - name: login-container
+          image: rothnan/lib-k8s-login:1.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3002
+          env:
+            - name: PORT
+              value: "3002"
+            - name: JWT_EXPIRES
+              value: "1h"
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: library-secret
+                  key: MONGO_URI
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: library-secret
+                  key: JWT_SECRET
+            - name: GATEWAY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: library-secret
+                  key: GATEWAY_SECRET
+          readinessProbe:
+            tcpSocket:
+              port: 3002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+
+        # ---------- Container 3: log viewer (nginx) - proves the volume is shared ----------
+        - name: log-viewer-container
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: app-logs
+              mountPath: /usr/share/nginx/html/logs   
+              readOnly: true                          
+          readinessProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { cpu: 100m, memory: 64Mi }

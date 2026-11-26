@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-librarian
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: seed
+          image: rothnan/lib-k8s-registration:1.1
+          imagePullPolicy: IfNotPresent
+          command: ["node", "seed-librarian.js"]
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: library-secret
+                  key: MONGO_URI
+            - name: LIBRARIAN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: library-secret
+                  key: LIBRARIAN_PASSWORD
+            - name: LIBRARIAN_NAME
+              value: "Head Librarian"
+            - name: LIBRARIAN_EMAIL
+              value: "librarian@library.com"
